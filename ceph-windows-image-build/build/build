@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -o errexit
+set -o pipefail
+
+WINDOWS_SERVER_2019_ISO_URL=${WINDOWS_SERVER_2019_ISO_URL:-"https://software-download.microsoft.com/download/pr/17763.737.190906-2324.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us_1.iso"}
+WINDOWS_SERVER_2019_ISO_CHECKSUM=${WINDOWS_SERVER_2019_ISO_CHECKSUM:-"sha256:549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1"}
+VIRTIO_WIN_ISO_URL=${VIRTIO_WIN_ISO_URL:-"https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"}
+
+BUILD_DIR="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
+
+if ! which unzip >/dev/null || ! which jq >/dev/null; then
+    sudo apt-get update
+    sudo apt-get install -y unzip jq
+fi
+
+cd $BUILD_DIR
+
+trap "${BUILD_DIR}/cleanup" EXIT
+
+echo "Downloading virtio-win ISO"
+curl -s -L $VIRTIO_WIN_ISO_URL -o virtio-win.iso
+
+PACKER_LATEST_VERSION="$(curl -s https://checkpoint-api.hashicorp.com/v1/check/packer | jq -r -M '.current_version')"
+echo "Downloading packer ${PACKER_LATEST_VERSION}"
+curl -s -L -o "packer_linux_amd64.zip" "https://releases.hashicorp.com/packer/${PACKER_LATEST_VERSION}/packer_${PACKER_LATEST_VERSION}_linux_amd64.zip"
+unzip -o "packer_linux_amd64.zip" packer
+chmod +x packer
+
+sudo ./packer build -color=false -var iso_url="$WINDOWS_SERVER_2019_ISO_URL" -var iso_checksum="$WINDOWS_SERVER_2019_ISO_CHECKSUM" packer.json
+sudo chown -R ${USER}:${USER} $BUILD_DIR
+
+echo "Image successfully built at: ${BUILD_DIR}/output/ceph-win-ltsc2019-ci-image.qcow2"

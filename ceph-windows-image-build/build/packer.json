@@ -1,0 +1,88 @@
+{
+    "variables": {
+        "iso_url": "{{ user `iso_url` }}",
+        "iso_checksum": "{{ user `iso_checksum` }}"
+    },
+    "builders":
+    [
+        {
+            "vm_name": "ceph-win-ltsc2019-ci-image.qcow2",
+            "type": "qemu",
+            "accelerator": "kvm",
+            "headless": true,
+
+            "cpus": 2,
+            "memory": 4096,
+            "disk_size": "50G",
+
+            "iso_url": "{{ user `iso_url` }}",
+            "iso_checksum": "{{ user `iso_checksum` }}",
+            "iso_target_path": "windows-server-2019.iso",
+
+            "floppy_files":
+            [
+                "autounattend.xml",
+                "install-virtio-guest-tools.ps1",
+                "install-openssh-server.ps1"
+            ],
+
+            "output_directory": "output",
+
+            "qemuargs":
+            [
+                ["-cpu", "host"],
+                ["-machine", "type=q35,accel=kvm"],
+                ["-drive", "file=output/{{ .Name }},if=virtio,cache=writeback,discard=ignore,format=qcow2,index=1"],
+                ["-drive", "file=./windows-server-2019.iso,media=cdrom,index=2"],
+                ["-drive", "file=./virtio-win.iso,media=cdrom,index=3"]
+            ],
+
+            "communicator": "ssh",
+
+            "ssh_username": "Administrator",
+            "ssh_password": "Passw0rd",
+            "ssh_timeout": "1h",
+
+            "shutdown_command": "IF EXIST %windir%\\TEMP\\setup_complete (%windir%\\System32\\Sysprep\\Sysprep.exe /generalize /oobe /shutdown /quiet) ELSE (shutdown /f /s /t 5)",
+            "shutdown_timeout": "5m"
+        }
+    ],
+    "provisioners": [
+        {
+            "elevated_user": "Administrator",
+            "elevated_password": "Passw0rd",
+            "type": "powershell",
+            "inline": [
+                "Get-NetAdapter -Physical | Rename-NetAdapter -NewName packer"
+            ]
+        },
+        {
+            "elevated_user": "Administrator",
+            "elevated_password": "Passw0rd",
+            "type": "powershell",
+            "script": "install-windows-updates.ps1"
+        },
+        {
+            "type": "windows-restart",
+            "restart_timeout": "10m"
+        },
+        {
+            "elevated_user": "Administrator",
+            "elevated_password": "Passw0rd",
+            "type": "powershell",
+            "script": "setup.ps1"
+        },
+        {
+            "type": "windows-restart",
+            "restart_timeout": "10m"
+        },
+        {
+            "elevated_user": "Administrator",
+            "elevated_password": "Passw0rd",
+            "type": "powershell",
+            "inline": [
+                "New-Item -ItemType File -Force -Path $env:windir\\TEMP\\setup_complete"
+            ]
+        }
+    ]
+}

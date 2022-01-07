@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -o errexit
+set -o pipefail
+
+BUILD_DIR="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
+
+if pgrep packer > /dev/null; then
+    sudo killall -s SIGTERM packer
+fi
+
+sudo rm -rf "${BUILD_DIR}/virtio-win.iso" "${BUILD_DIR}/packer_linux_amd64.zip"
