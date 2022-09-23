@@ -69,6 +69,7 @@
           - ../../build/check_docs_pr_only
           - ../../../scripts/ceph-windows/win32_build
           - ../../../scripts/ceph-windows/setup_libvirt_vm
+          - ../../../scripts/ceph-windows/vstart_cluster
           - ../../../scripts/ceph-windows/run_tests
 
     publishers:

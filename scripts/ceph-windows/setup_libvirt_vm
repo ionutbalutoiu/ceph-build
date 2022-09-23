@@ -8,12 +8,14 @@ if [[ -z $CEPH_WIN_CI_KEY ]]; then
 fi
 
 export VM_IMAGE_URL=${VM_IMAGE_URL:-"https://filedump.ceph.com/windows/ceph-win-ltsc2019-ci-image.qcow2"}
-export VM_NAME=${VM_NAME:-"ceph-win-ltsc2019-${JOB_NAME}-${BUILD_ID}"}
+export VM_NAME=${VM_NAME:-"ceph-windows-client-${JOB_NAME}-${BUILD_ID}"}
+export VM_DIR="${WORKSPACE}/libvirt_windows_vm"
 
 export SSH_USER="administrator"
-export SSH_KNOWN_HOSTS_FILE="$WORKSPACE/known_hosts"
+export SSH_KNOWN_HOSTS_FILE="$VM_DIR/known_hosts"
 export SSH_KEY="$CEPH_WIN_CI_KEY"
 
+mkdir -p $VM_DIR
 
 #
 # Install requirements (if needed)
@@ -52,9 +54,8 @@ fi
 #
 # Download the Windows qcow2 image
 #
-IMAGE_FILE="$(basename $VM_IMAGE_URL)"
 echo "Downloading VM image from $VM_IMAGE_URL"
-curl -L -o ${WORKSPACE}/${IMAGE_FILE} $VM_IMAGE_URL
+curl -L -o ${VM_DIR}/ceph-windows-client.qcow2 $VM_IMAGE_URL
 
 #
 # Start the Windows testing VM
@@ -68,7 +69,7 @@ sudo virt-install \
     --cpu host \
     --vcpus 4 \
     --memory 4096 \
-    --disk ${WORKSPACE}/${IMAGE_FILE},bus=virtio \
+    --disk ${VM_DIR}/ceph-windows-client.qcow2,bus=virtio \
     --network network=default,model=virtio \
     --controller type=virtio-serial \
     --channel unix,target_type=virtio,name=org.qemu.guest_agent.0 \
@@ -77,9 +78,9 @@ sudo virt-install \
 #
 # Find the VM NIC MAC address
 #
-sudo virsh dumpxml $VM_NAME > $WORKSPACE/libvirt_vm.xml
-VM_NIC_MAC_ADDRESS=`xmllint --xpath 'string(/domain/devices/interface/mac/@address)' $WORKSPACE/libvirt_vm.xml`
-rm $WORKSPACE/libvirt_vm.xml
+sudo virsh dumpxml $VM_NAME > $VM_DIR/libvirt_vm.xml
+VM_NIC_MAC_ADDRESS=`xmllint --xpath 'string(/domain/devices/interface/mac/@address)' $VM_DIR/libvirt_vm.xml`
+rm $VM_DIR/libvirt_vm.xml
 
 #
 # Wait until the QEMU agent reports the VM IP, and it's reachable via SSH
@@ -103,7 +104,7 @@ while true; do
         sleep $SLEEP_SECS
         continue
     fi
-    ssh-keyscan -H $VM_IP &> ${WORKSPACE}/known_hosts || {
+    ssh-keyscan -H $VM_IP &> $SSH_KNOWN_HOSTS_FILE || {
         echo "SSH is not reachable yet"
         sleep $SLEEP_SECS
         continue
